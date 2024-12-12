@@ -6,7 +6,7 @@ SERVICE_NAME="stunnel-vnc-client.service"
 CONFIG_PATH="/etc/stunnel/vnc-client.conf"
 PID_DIR="/run/stunnel4"
 PID_FILE="${PID_DIR}/stunnel-client.pid"
-CERT_DIR="/etc/stunnel"
+CERT_DIR="/etc/stunnel/certs"
 
 usage() {
     echo "Usage: $0 -server <ip> -remoteport <port> -localport <port> -certfile <path> -name <name>"
@@ -106,16 +106,13 @@ if ! grep -q "^client = yes" "$CONFIG_PATH"; then
     sed -i '/^pid = /a client = yes' "$CONFIG_PATH"
 fi
 
-if ! grep -q "^CAfile = $CERT_DEST" "$CONFIG_PATH"; then
-    sed -i '/^client = yes/a CAfile = $CERT_DEST' "$CONFIG_PATH"
-fi
-
 # Append new server section
 cat >> "$CONFIG_PATH" <<EOF
 
 [vnc-client-${NAME}]
 accept = 127.0.0.1:${LOCAL_PORT}
 connect = ${SERVER_IP}:${REMOTE_PORT}
+CAfile = ${CERT_DEST}
 EOF
 
 # Create/overwrite the systemd unit
