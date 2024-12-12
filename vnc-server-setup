@@ -2,11 +2,11 @@
 
 set -e
 
-SERVICE_NAME="stunnel-x11vnc.service"
+SERVICE_NAME="stunnel-vnc-server.service"
 CONFIG_PATH="/etc/stunnel/x11vnc.conf"
 PID_DIR="/run/stunnel4"
-PID_FILE="${PID_DIR}/stunnel.pid"
-CERT_FILE="/etc/stunnel/x11vnc.pem"
+PID_FILE="${PID_DIR}/stunnel-server.pid"
+CERT_FILE="/etc/stunnel/vnc.pem"
 
 usage() {
     echo "Usage: $0 -remoteport <port> -localport <port>"
