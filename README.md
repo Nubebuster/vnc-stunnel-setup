@@ -14,6 +14,7 @@ These scripts create a secure tunnel for connecting to your VNC server instead o
 ## Setup on the Server Hosting VNC
   1. **Make the Server Setup Script Executable** ```bash sudo chmod +x ./vnc-server-setup ```
   2. **Run the Server Setup Script** ```bash sudo ./vnc-server-setup -server localhost -remoteport 5901 -localport 5900 ```
+  3. **Copy the created public key** Save the printed key on your client machine. For example in `server.pem`
 **Parameters:**
  - `-server localhost`: Specifies that the vnc server is running on `localhost`.
  - `-remoteport 5901`: The port on which the server will accept encrypted connections.
@@ -28,6 +29,7 @@ These scripts create a secure tunnel for connecting to your VNC server instead o
  - `-server <server-ip>`: Replace `<server-ip>` with the IP address of your VNC server.
  - `-remoteport 5901`: The port on the server to connect to (should match the server's `-remoteport`).
  - `-localport 5900`: The local port on the client machine to forward the connection.
+ - `-certfile ./server.pem`: The path to the file containing public key generated on the server.
 
 ## Connecting with a VNC Client
 After setting up the tunnel: 
@@ -49,6 +51,7 @@ This connection will be securely tunneled to the VNC server running on the remot
 ## Notes
  - Closing the old port `5900` on the vnc server ensures you do not accidentally connect to the unencrypted port.
  - A vnc client may still warn you that the connection is unencrypted. You may ignore this message as the vnc client is unaware of the stunnel setup.
+ - If you are using a domain or want to improve security, edit the server key generate line to include a host or ip. Then in the client config add the `checkIP` or `checkHost` and `verify = 2`. This means that when verifying the certificate you are ensured that the certificate belongs to the server you are connecting to. This is not really necessary if you generated the key yourself since you are sure it's valid.
  - The `vnc-server-setup` creates a new service `stunnel-vnc-client.service` and overwrites `/etc/stunnel/x11vnc.conf` if it exists.
  - The `vnc-client-setup` creates a new service if it does not exist `stunnel-vnc-server.service` and creates or appends to `/etc/stunnel/x11vnc.conf`. So you can add multiple remote servers to your client by running the script again.*
 > *Running the client setup with the same aruguments adds duplicate entries in `/etc/stunnel/vnc-client.conf`. You can edit the file manually if any issues occur or you want to modify an entry.
