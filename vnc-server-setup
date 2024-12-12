@@ -3,7 +3,7 @@
 set -e
 
 SERVICE_NAME="stunnel-vnc-server.service"
-CONFIG_PATH="/etc/stunnel/x11vnc.conf"
+CONFIG_PATH="/etc/stunnel/vnc.conf"
 PID_DIR="/run/stunnel4"
 PID_FILE="${PID_DIR}/stunnel-server.pid"
 CERT_FILE="/etc/stunnel/vnc.pem"
@@ -120,9 +120,9 @@ echo " - Forwarding to: 127.0.0.1:${LOCAL_PORT}"
 echo "Use a TLS-aware client or another stunnel in client mode to connect."
 echo "For more info on stunnel: <a href=\"https://www.stunnel.org/\">https://www.stunnel.org/</a>"
 echo "Public certificate for the client to verify the server:"
-echo "------------------------------------------------------"
+echo ""
 sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' "${CERT_FILE}"
-echo "------------------------------------------------------"
+echo ""
 echo "Copy and save the above certificate on the client machine as 'vnc-server-cert.pem'."
 echo "You can run the client setup script with the -certfile ./vnc-server-cert.pem option."
 
