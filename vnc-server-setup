@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+set -e
+
+SERVICE_NAME="stunnel-x11vnc.service"
+CONFIG_PATH="/etc/stunnel/x11vnc.conf"
+PID_DIR="/run/stunnel4"
+PID_FILE="${PID_DIR}/stunnel.pid"
+CERT_FILE="/etc/stunnel/x11vnc.pem"
+
+usage() {
+    echo "Usage: $0 -remoteport <port> -localport <port>"
+    exit 1
+}
+
+REMOTE_PORT=""
+LOCAL_PORT=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -remoteport)
+            REMOTE_PORT="$2"
+            shift 2
+            ;;
+        -localport)
+            LOCAL_PORT="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown parameter: $1"
+            usage
+            ;;
+    esac
+done
+
+if [[ -z "$REMOTE_PORT" || -z "$LOCAL_PORT" ]]; then
+    echo "Missing arguments."
+    usage
+fi
+
+# Ensure running as root
+if [[ $EUID -ne 0 ]]; then
+   echo "Please run this script as root."
+   exit 1
+fi
+
+# Install stunnel if not installed
+if ! command -v stunnel >/dev/null 2>&1; then
+    echo "Installing stunnel..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y stunnel4
+fi
+
+# Ensure directories
+mkdir -p /etc/stunnel
+chmod 755 /etc/stunnel
+
+mkdir -p "${PID_DIR}"
+chown stunnel4:stunnel4 "${PID_DIR}"
+
+# Enable stunnel by default
+if [ -f /etc/default/stunnel4 ]; then
+    sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 || true
+fi
+
+# Generate certificate if it doesn't exist
+if [[ ! -f "${CERT_FILE}" ]]; then
+    echo "Generating self-signed certificate..."
+    openssl req -x509 -newkey rsa:2048 \
+        -keyout /etc/stunnel/key.pem \
+        -out /etc/stunnel/cert.pem \
+        -days 365 -nodes \
+        -subj "/C=US/ST=Example/L=Example/O=Example/OU=IT/CN=localhost"
+
+    cat /etc/stunnel/cert.pem /etc/stunnel/key.pem > "${CERT_FILE}"
+    rm /etc/stunnel/cert.pem /etc/stunnel/key.pem
+    chmod 600 "${CERT_FILE}"
+fi
+
+# Create/overwrite stunnel configuration for the server
+cat > "${CONFIG_PATH}" <<EOF
+pid = ${PID_FILE}
+cert = ${CERT_FILE}
+
+[vnc-server]
+client = no
+accept = 0.0.0.0:${REMOTE_PORT}
+connect = 127.0.0.1:${LOCAL_PORT}
+EOF
+
+# Create/overwrite the systemd unit
+SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
+cat > "${SERVICE_PATH}" <<EOF
+[Unit]
+Description=Stunnel service for x11vnc TLS encryption
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/stunnel4 ${CONFIG_PATH}
+PIDFile=${PID_FILE}
+Restart=on-failure
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable ${SERVICE_NAME}
+systemctl restart ${SERVICE_NAME}
+
+systemctl status ${SERVICE_NAME} --no-pager || true
+
+echo "Stunnel server configured:"
+echo " - PID file: ${PID_FILE}"
+echo " - Config: ${CONFIG_PATH}"
+echo " - Listening on: 0.0.0.0:${REMOTE_PORT}"
+echo " - Forwarding to: 127.0.0.1:${LOCAL_PORT}"
+echo "Use a TLS-aware client or another stunnel in client mode to connect."
+echo "For more info on stunnel: <a href=\"https://www.stunnel.org/\">https://www.stunnel.org/</a>"

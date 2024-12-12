@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+
+set -e
+
+SERVICE_NAME="stunnel-vnc-client.service"
+CONFIG_PATH="/etc/stunnel/vnc-client.conf"
+PID_DIR="/run/stunnel4"
+PID_FILE="${PID_DIR}/stunnel-client.pid"
+
+usage() {
+    echo "Usage: $0 -server <ip> -remoteport <port> -localport <port>"
+    exit 1
+}
+
+# Parse arguments
+SERVER_IP=""
+REMOTE_PORT=""
+LOCAL_PORT=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -server)
+            SERVER_IP="$2"
+            shift 2
+            ;;
+        -remoteport)
+            REMOTE_PORT="$2"
+            shift 2
+            ;;
+        -localport)
+            LOCAL_PORT="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown parameter: $1"
+            usage
+            ;;
+    esac
+done
+
+# Validate arguments
+if [[ -z "$SERVER_IP" || -z "$REMOTE_PORT" || -z "$LOCAL_PORT" ]]; then
+    echo "Error: Missing required arguments."
+    usage
+fi
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+    echo "Please run this script as root."
+    exit 1
+fi
+
+# Ensure stunnel is installed
+if ! command -v stunnel >/dev/null 2>&1; then
+    echo "stunnel not found. Installing..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y stunnel4
+fi
+
+# Ensure directories
+mkdir -p /etc/stunnel
+chmod 755 /etc/stunnel
+mkdir -p "$PID_DIR"
+chown stunnel4:stunnel4 "$PID_DIR"
+
+# Ensure stunnel is enabled
+if [ -f /etc/default/stunnel4 ]; then
+    sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 || true
+fi
+
+# If the config doesn't exist, create it with pid and client lines
+if [[ ! -f "$CONFIG_PATH" ]]; then
+    cat > "$CONFIG_PATH" <<EOF
+pid = $PID_FILE
+client = yes
+EOF
+fi
+
+# Ensure pid and client lines exist in case config was manually edited
+if ! grep -q "^pid = " "$CONFIG_PATH"; then
+    sed -i "1ipid = $PID_FILE" "$CONFIG_PATH"
+fi
+
+if ! grep -q "^client = yes" "$CONFIG_PATH"; then
+    # Insert client = yes after pid line if it wasn't found
+    if grep -q "^pid = " "$CONFIG_PATH"; then
+        sed -i '/^pid = /a client = yes' "$CONFIG_PATH"
+    else
+        # If for some reason pid line is missing, add both at top
+        sed -i "1ipid = $PID_FILE\nclient = yes" "$CONFIG_PATH"
+    fi
+fi
+
+# Append new server section
+# Using a unique name per server instance, for example: [vnc-client-<localport>]
+cat >> "$CONFIG_PATH" <<EOF
+
+[vnc-client-${LOCAL_PORT}]
+accept = 127.0.0.1:${LOCAL_PORT}
+connect = ${SERVER_IP}:${REMOTE_PORT}
+EOF
+
+# Create/overwrite the systemd unit
+SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
+cat > "${SERVICE_PATH}" <<EOF
+[Unit]
+Description=Stunnel VNC Client Service
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/stunnel4 ${CONFIG_PATH}
+PIDFile=${PID_FILE}
+Restart=on-failure
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+# Reload systemd and restart the service
+systemctl daemon-reload
+systemctl enable ${SERVICE_NAME}
+systemctl restart ${SERVICE_NAME}
+
+# Show the service status
+systemctl status ${SERVICE_NAME} --no-pager || true
+
+echo "Stunnel client configured:"
+echo " - PID file: $PID_FILE"
+echo " - Config: $CONFIG_PATH"
+echo " - Connect your VNC client to localhost:${LOCAL_PORT} for server at ${SERVER_IP}:${REMOTE_PORT}."
