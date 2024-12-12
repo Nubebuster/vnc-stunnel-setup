@@ -51,7 +51,7 @@ This connection will be securely tunneled to the VNC server running on the remot
 ## Notes
  - Closing the old port `5900` on the vnc server ensures you do not accidentally connect to the unencrypted port.
  - A vnc client may still warn you that the connection is unencrypted. You may ignore this message as the vnc client is unaware of the stunnel setup.
- - If you are using a domain or want to improve security, edit the server key generate line to include a host or ip. Then in the client config add the `checkIP` or `checkHost` and `verify = 2`. This means that when verifying the certificate you are ensured that the certificate belongs to the server you are connecting to. This is not really necessary if you generated the key yourself since you are sure it's valid.
+ - If you are using a domain or want to improve security, edit the server key generate line to include a host or ip. Then in the client config add the `checkIP` or `checkHost` and `verify = 2`. This means that when verifying the certificate you are ensured that the certificate belongs to the server you are connecting to. This is not really necessary if you generated the key yourself since are the issueing authority.
  - The `vnc-server-setup` creates a new service `stunnel-vnc-client.service` and overwrites `/etc/stunnel/x11vnc.conf` if it exists.
  - The `vnc-client-setup` creates a new service if it does not exist `stunnel-vnc-server.service` and creates or appends to `/etc/stunnel/x11vnc.conf`. So you can add multiple remote servers to your client by running the script again.*
 > *Running the client setup with the same aruguments adds duplicate entries in `/etc/stunnel/vnc-client.conf`. You can edit the file manually if any issues occur or you want to modify an entry.
